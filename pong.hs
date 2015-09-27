@@ -139,7 +139,6 @@ restartGame canvasElem canvas state = do
 -- move the paddles 
 movePaddles :: (Int, Int) -> IORef GameState -> IO ()
 movePaddles (mouseX, mouseY) stateRef = do
-	state <- readIORef stateRef
 	atomicModifyIORef stateRef (\state -> ((state {paddlePos = (fromIntegral mouseX) - (paddleWidth / 2)}), ()))
 
 -- change ball direction if ball hits paddle
