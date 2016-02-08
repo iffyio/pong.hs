@@ -1,6 +1,9 @@
 import Haste
+import Haste.DOM
+import Haste.Events
 import Haste.Graphics.Canvas
 import Data.IORef
+import Data.Maybe
 
 -- Type declarations
 data GameState = GameState{
@@ -107,7 +110,7 @@ moveBall state = state {ballPos = (x + vx, y + vy)}
   	(vx, vy) = ballSpeed state
 
 -- Display game and Update screen
-animate :: Canvas -> IORef GameState -> IO ()
+-- animate :: Canvas -> IORef GameState -> IO ()
 animate canvas stateRef = do
 	state <- readIORef stateRef
 	let (x, y) = ballPos state
@@ -116,7 +119,8 @@ animate canvas stateRef = do
 	case gameEnded state of
 		Nothing -> do 
 			atomicWriteIORef stateRef $ update state 
-			setTimeout 30 $ animate canvas stateRef
+			setTimer (Once 30) $ animate canvas stateRef
+                        return ()
 		Just Top  -> do
                         let  x' = paddlePos state
                         restartGame canvasElem canvas state {ballPos = (x' + paddleWidth / 2, 12)}
@@ -125,14 +129,23 @@ animate canvas stateRef = do
                         restartGame canvasElem canvas state {ballPos = (x' + paddleWidth / 2, height - 12)}
  where
    update = paddleHit . moveBall . detectCollision  
-   
+
+-- setTimeout :: MonadIO m => Int -> IO () -> m ()
+
+-- Wrapper for window.setTimeout; execute the given computation after a delay given in milliseconds.
+-- setTimer :: MonadEvent m => Interval -> m () -> m Timer	
+
+
 -- Redraw canvas and restart game
 restartGame :: Elem -> Canvas -> GameState -> IO ()
 restartGame canvasElem canvas state = do 
         let (x',y') = ballPos state
             (vx,vy) = ballSpeed state
-	setTimeout 30 $ renderState True canvas  $ state {ballPos = (x', y')}
-        _ <- onEvent canvasElem OnClick $ \btn (x,y) -> btnEvent btn (x,y) canvasElem state {ballSpeed = (vx, -vy), score = 0}
+	setTimer (Once 30) $ renderState True canvas  $ state {ballPos = (x', y')}
+        _ <- onEvent canvasElem Click $
+             \(MouseData (x,y) btn _) ->
+             btnEvent (x,y) ((fromEnum . fromJust) btn)
+                canvasElem state {ballSpeed = (vx, -vy), score = 0}
         return ()
   
 
@@ -202,13 +215,13 @@ startGame state = do
   addChild canvasElem documentBody
   Just canvas <- getCanvas canvasElem
   stateRef <- newIORef $ state {canvasElement = Just  canvasElem, ballSpeed = defaultSpeed}
-  onEvent canvasElem OnMouseMove $ \mousePos -> do
+  onEvent canvasElem MouseMove $ \MouseData {mouseCoords = mousePos} -> do
 		movePaddles mousePos stateRef
   animate canvas stateRef
 
 -- handle click event on button
-btnEvent :: Int -> (Int, Int) -> Elem -> GameState -> IO ()
-btnEvent btn (x,y) canvasElem state | btn == 0 =
+btnEvent :: (Int, Int) -> Int -> Elem -> GameState -> IO ()
+btnEvent (x,y) btn canvasElem state | btn == 0 =
   let x' = fromIntegral x
       y' = fromIntegral y
   in
@@ -221,7 +234,7 @@ btnEvent btn (x,y) canvasElem state | btn == 0 =
     | otherwise = return ()
 
 -- main
-main :: IO Bool
+-- main :: IO Bool
 main = do
 	canvasElem <- mkCanvas width height
 	addChild canvasElem documentBody
@@ -229,7 +242,9 @@ main = do
         render canvas $ do 
           drawButton "Start"
           gamePicture initialState
-        onEvent canvasElem OnClick $ \btn (x,y) -> btnEvent btn (x,y) canvasElem initialState
+        onEvent canvasElem Click $
+          \(MouseData (x,y) btn _)
+          -> btnEvent (x,y) ((fromEnum . fromJust) btn) canvasElem initialState
  	
 
   
