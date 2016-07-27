@@ -1,19 +1,21 @@
 import Haste
+import Haste.DOM
+import Haste.Events
 import Haste.Graphics.Canvas
 import Data.IORef
 
 -- Type declarations
 data GameState = GameState{
-	ballPos :: Point, -- position of ball
-	ballSpeed :: Point, -- how far will ball move in a single update
-	paddlePos:: Double, -- start position of paddle on x axis
-	score  :: Int, 
-        canvasElement :: Maybe Elem
+    ballPos :: Point, -- position of ball
+    ballSpeed :: Point, -- how far will ball move in a single update
+    paddlePos:: Double, -- start position of paddle on x axis
+    score  :: Int, 
+    canvasElement :: Maybe Elem
 }
 
 data Paddle = Top | Bottom
 
--- Constants ?
+-- Constants
 width, height,ballRadius, paddleWidth, paddleHeight :: Double
 width = 500 -- width of canvas
 height = 600 -- height of canvas
@@ -33,10 +35,10 @@ defaultSpeed = (8,10)
 
 initialState :: GameState
 initialState = GameState{
- 	ballPos = (20, 20),
- 	ballSpeed = defaultSpeed,
-	paddlePos = (width / 2) - 75,
-	score = 0,
+    ballPos = (20, 20),
+    ballSpeed = defaultSpeed,
+    paddlePos = (width / 2) - 75,
+    score = 0,
         canvasElement = Nothing
  }
 
@@ -48,8 +50,8 @@ renderState gameover canvas state = render canvas $ do
      then gameOver $ show (score state)
      else return () 
   where
- 	x1 = paddlePos state
- 	x2 = x1 + paddleWidth
+    x1 = paddlePos state
+    x2 = x1 + paddleWidth
 
 -- blue color
 blue :: Picture () -> Picture ()
@@ -57,23 +59,23 @@ blue = color (RGB 130 205 185)
 -- Draw a ball
 ball :: Point -> Picture ()
 ball pt = color (RGB 243 114 89) $ do
-	fill $ circle pt ballRadius
+    fill $ circle pt ballRadius
 
 -- Draw a paddle
 paddle :: Rect -> Picture ()
 paddle (Rect x1 y1 x2 y2) = blue $ do
-	fill $ rect (x1, y1) (x2, y2)
+    fill $ rect (x1, y1) (x2, y2)
 
 -- Draw a button with label
 drawButton :: String -> Picture ()
 drawButton note = blue $ do
-	stroke $ rect (btnX1, btnY1) (btnX2, btnY2)
-        font "20px italic Monospace" $ text ((btnX1 + btnX2) / 2 - 35 ,(btnY1 + btnY2) / 2 + 5) note
+    stroke $ rect (btnX1, btnY1) (btnX2, btnY2)
+    font "20px italic Monospace" $ text ((btnX1 + btnX2) / 2 - 35 ,(btnY1 + btnY2) / 2 + 5) note
 
 -- Draw text 
 drawText :: Point -> String -> Picture ()
 drawText point s = blue $ do 
-	text point s
+    text point s
 
 -- Draw game state on screen / paddles, ball, score 
 gamePicture :: GameState -> Picture ()
@@ -88,14 +90,14 @@ gamePicture state = do
 -- Create new canvas to draw on
 mkCanvas :: Double -> Double -> IO Elem
 mkCanvas width height = do
-	canvas <- newElem "canvas"
-	setProp canvas "width" (show width)
-	setProp canvas "height" (show height)
-	setStyle canvas "display" "block"
-	setStyle canvas "border" "1px solid #524F52"
-	setStyle canvas "margin" "0px auto 0 auto"
-	setStyle canvas "backgroundColor" "#524F52"
-	return canvas
+    canvas <- newElem "canvas"
+    setProp canvas "width" (show width)
+    setProp canvas "height" (show height)
+    setStyle canvas "display" "block"
+    setStyle canvas "border" "1px solid #524F52"
+    setStyle canvas "margin" "0px auto 0 auto"
+    setStyle canvas "backgroundColor" "#524F52"
+    return canvas
 
 
 
@@ -103,24 +105,25 @@ mkCanvas width height = do
 moveBall :: GameState -> GameState
 moveBall state = state {ballPos = (x + vx, y + vy)}
   where
-  	(x, y)   = ballPos state
-  	(vx, vy) = ballSpeed state
+    (x, y)   = ballPos state
+    (vx, vy) = ballSpeed state
 
 -- Display game and Update screen
 animate :: Canvas -> IORef GameState -> IO ()
 animate canvas stateRef = do
-	state <- readIORef stateRef
-	let (x, y) = ballPos state
-            (Just canvasElem) = canvasElement state
-	renderState False canvas state
-	case gameEnded state of
-		Nothing -> do 
-			atomicWriteIORef stateRef $ update state 
-			setTimeout 30 $ animate canvas stateRef
-		Just Top  -> do
+    state <- readIORef stateRef
+    let (x, y) = ballPos state
+        (Just canvasElem) = canvasElement state
+    renderState False canvas state
+    case gameEnded state of
+        Nothing -> do 
+            atomicWriteIORef stateRef $ update state 
+            _ <- setTimer (Once 30) $ animate canvas stateRef
+            return ()
+        Just Top  -> do
                         let  x' = paddlePos state
                         restartGame canvasElem canvas state {ballPos = (x' + paddleWidth / 2, 12)}
-		Just Bottom -> do
+        Just Bottom -> do
                         let x' = paddlePos state
                         restartGame canvasElem canvas state {ballPos = (x' + paddleWidth / 2, height - 12)}
  where
@@ -131,40 +134,40 @@ restartGame :: Elem -> Canvas -> GameState -> IO ()
 restartGame canvasElem canvas state = do 
         let (x',y') = ballPos state
             (vx,vy) = ballSpeed state
-	setTimeout 30 $ renderState True canvas  $ state {ballPos = (x', y')}
-        _ <- onEvent canvasElem OnClick $ \btn (x,y) -> btnEvent btn (x,y) canvasElem state {ballSpeed = (vx, -vy), score = 0}
+        setTimer (Once 30) $ renderState True canvas  $ state {ballPos = (x', y')}
+        _ <- onEvent canvasElem Click $ \mousedata -> btnEvent (mouseButton mousedata) (mouseCoords mousedata) canvasElem state {ballSpeed = (vx, -vy), score = 0}
         return ()
   
 
 -- move the paddles 
 movePaddles :: (Int, Int) -> IORef GameState -> IO ()
 movePaddles (mouseX, mouseY) stateRef = do
-	atomicModifyIORef stateRef (\state -> ((state {paddlePos = (fromIntegral mouseX) - (paddleWidth / 2)}), ()))
+    atomicModifyIORef stateRef (\state -> ((state {paddlePos = (fromIntegral mouseX) - (paddleWidth / 2)}), ()))
 
 -- change ball direction if ball hits paddle
 paddleHit :: GameState -> GameState
 paddleHit state = 
-	if and [bx' >= px, bx'' <= pl, (by >= height-ph) || (by <= ph)] 
-	then increaseSpeed state {ballSpeed = (vx, -vy), score = score state + 1}
-	else state		
+    if and [bx' >= px, bx'' <= pl, (by >= height-ph) || (by <= ph)] 
+    then increaseSpeed state {ballSpeed = (vx, -vy), score = score state + 1}
+    else state      
  where
-	(bx,by) = ballPos state
-	bx' = bx + ballRadius
-	bx'' = bx - ballRadius
-	(vx,vy) = ballSpeed state
-	px = paddlePos state
-	ph = paddleHeight
-	pl = px + paddleWidth
+    (bx,by) = ballPos state
+    bx' = bx + ballRadius
+    bx'' = bx - ballRadius
+    (vx,vy) = ballSpeed state
+    px = paddlePos state
+    ph = paddleHeight
+    pl = px + paddleWidth
 
 -- Change ball direction if ball hits walls
 detectCollision :: GameState -> GameState
 detectCollision state
-	| (x + ballRadius) >= width = state {ballPos = (width - ballRadius,y), ballSpeed = (-vx, vy)}
-	| (x + ballRadius) <= 0 = state {ballPos = (ballRadius, y), ballSpeed = (-vx, vy)}
-	| otherwise = state
+    | (x + ballRadius) >= width = state {ballPos = (width - ballRadius,y), ballSpeed = (-vx, vy)}
+    | (x + ballRadius) <= 0 = state {ballPos = (ballRadius, y), ballSpeed = (-vx, vy)}
+    | otherwise = state
  where
- 	(x, y) = ballPos state
- 	(vx,vy) = ballSpeed state
+    (x, y) = ballPos state
+    (vx,vy) = ballSpeed state
 
 -- increment ball speed
 increaseSpeed :: GameState -> GameState
@@ -180,9 +183,9 @@ increaseSpeed state = if  score state `mod` 4 == 0 && (abs vx < 15)
 -- Check if ball is out / Has a paddle missed ?
 gameEnded :: GameState -> Maybe Paddle
 gameEnded state
-	| y >= height && (x < px || x > px + paddleWidth) = Just Bottom
-	| y <= 0 && (x < px || x > px + paddleWidth) = Just Top
-	| otherwise = Nothing
+    | y >= height && (x < px || x > px + paddleWidth) = Just Bottom
+    | y <= 0 && (x < px || x > px + paddleWidth) = Just Top
+    | otherwise = Nothing
  where
    (x,y) = ballPos state
    px = paddlePos state
@@ -202,17 +205,16 @@ startGame state = do
   addChild canvasElem documentBody
   Just canvas <- getCanvas canvasElem
   stateRef <- newIORef $ state {canvasElement = Just  canvasElem, ballSpeed = defaultSpeed}
-  onEvent canvasElem OnMouseMove $ \mousePos -> do
-		movePaddles mousePos stateRef
+  onEvent canvasElem MouseMove $ \mousedata -> movePaddles (mouseCoords mousedata) stateRef
   animate canvas stateRef
 
 -- handle click event on button
-btnEvent :: Int -> (Int, Int) -> Elem -> GameState -> IO ()
-btnEvent btn (x,y) canvasElem state | btn == 0 =
+btnEvent :: (Maybe MouseButton) -> (Int, Int) -> Elem -> GameState -> IO ()
+btnEvent mbtn (x,y) canvasElem state | mbtn == Just MouseLeft =
   let x' = fromIntegral x
       y' = fromIntegral y
   in
-  if and [btn == 0, x' >= btnX1, x' <= btnX2, y' >= btnY1, y' <= btnY2 ]
+  if and [mbtn == Just MouseLeft, x' >= btnX1, x' <= btnX2, y' >= btnY1, y' <= btnY2 ]
   then do
     removeChild canvasElem documentBody
     startGame state
@@ -223,17 +225,11 @@ btnEvent btn (x,y) canvasElem state | btn == 0 =
 -- main
 main :: IO Bool
 main = do
-	canvasElem <- mkCanvas width height
-	addChild canvasElem documentBody
-	Just canvas <- getCanvas canvasElem
-        render canvas $ do 
+    canvasElem <- mkCanvas width height
+    addChild canvasElem documentBody
+    Just canvas <- getCanvas canvasElem
+    render canvas $ do 
           drawButton "Start"
           gamePicture initialState
-        onEvent canvasElem OnClick $ \btn (x,y) -> btnEvent btn (x,y) canvasElem initialState
- 	
-
-  
-
-
-
-	
+    onEvent canvasElem Click $ \mousedata -> btnEvent (mouseButton mousedata) (mouseCoords mousedata) canvasElem initialState
+    return True
